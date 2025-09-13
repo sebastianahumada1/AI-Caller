@@ -1,0 +1,26 @@
+# Dockerfile para desarrollo con hot-reload
+FROM node:18-alpine
+
+# Instalar dependencias del sistema necesarias para desarrollo
+RUN apk add --no-cache git
+
+# Establecer el directorio de trabajo
+WORKDIR /app
+
+# Copiar package.json y package-lock.json
+COPY package*.json ./
+
+# Instalar todas las dependencias (incluyendo devDependencies)
+RUN npm install
+
+# Copiar el código fuente
+COPY . .
+
+# Crear directorio para storage
+RUN mkdir -p storage
+
+# Exponer el puerto
+EXPOSE 3000
+
+# Comando para desarrollo con hot-reload
+CMD ["npm", "run", "dev"]
