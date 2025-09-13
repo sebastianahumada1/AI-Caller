@@ -1,0 +1,37 @@
+import { Request, Response } from 'express';
+export declare class VapiWebhookHandler {
+    private ghlConnector;
+    private vapiApiClient;
+    private fileStorage;
+    private sentNotes;
+    constructor();
+    validateToken(req: Request, res: Response, next: () => void): void;
+    handleWebhook(req: Request, res: Response): Promise<void>;
+    private processMessage;
+    private handleToolCalls;
+    private dispatchToolCall;
+    private handleSendSms;
+    private handleUpsertContact;
+    private handleAddTag;
+    private handleAddNote;
+    private handleUpdateStage;
+    private handleCallEnded;
+    private handleEndOfCallReport;
+    private scheduleAnalysisPolling;
+    private pollForCallAnalysis;
+    private processEndOfCallReport;
+    private handleTranscript;
+    private handleStatusUpdate;
+    private handleMetadata;
+    private handleGhlTool;
+    private dispatchGhlTool;
+    private handleCreateOpportunity;
+    private handleUpdateContact;
+    private handleSendEmail;
+    pullCallMetadata(callId: string): Promise<any>;
+    pullAndProcessGhlMetadata(callId: string): Promise<any>;
+    private processGhlMetadata;
+    scheduleMetadataPull(callId: string, delays?: number[]): Promise<void>;
+    private sendFinalSummaryNote;
+    private saveCompleteCallDataAfterDelay;
+}
