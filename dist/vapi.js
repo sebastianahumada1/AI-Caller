@@ -276,8 +276,10 @@ export class VapiWebhookHandler {
     }
     handleEndOfCallReport(message) {
         const recordingUrl = message.call?.recordingUrl || message.recordingUrl;
+        const assistantId = message.call?.assistantId;
         Logger.info('End of call report received', {
             callId: message.call?.id,
+            assistantId,
             timestamp: message.timestamp,
             endedReason: message.endedReason,
             duration: message.duration,
@@ -285,6 +287,14 @@ export class VapiWebhookHandler {
             analysis: message.analysis ? 'Analysis included' : 'Analysis pending',
             hasRecording: !!recordingUrl,
         });
+        // Set assistant ID in GHL connector if available
+        if (assistantId) {
+            this.ghlConnector.setAssistantId(assistantId);
+            Logger.info('[END_OF_CALL] Assistant ID set for GHL operations', {
+                assistantId,
+                callId: message.call?.id,
+            });
+        }
         // Store the summary from end-of-call-report if available
         if (message.call?.id && message.analysis?.summary) {
             this.callSummaries.set(message.call.id, message.analysis.summary);
@@ -359,8 +369,9 @@ export class VapiWebhookHandler {
                     callId,
                     ghlKeys: Object.keys(callDetails.metadata.ghl),
                 });
-                // Process the GHL metadata
-                await this.processGhlMetadata(callId, callDetails.metadata.ghl);
+                // Process the GHL metadata with assistant ID
+                const assistantId = callDetails.assistantId;
+                await this.processGhlMetadata(callId, callDetails.metadata.ghl, assistantId);
             }
             Logger.info('[ANALYSIS_POLL] Analysis poll completed', {
                 callId,
@@ -573,8 +584,10 @@ export class VapiWebhookHandler {
                 contactId: ghlMetadata.contactId,
                 source: ghlMetadata.source,
             });
+            // Get assistant ID from full call data
+            const assistantId = metadataResult.fullCall?.assistantId;
             // Process the GHL metadata - you can add custom logic here
-            const processedResult = await this.processGhlMetadata(callId, ghlMetadata);
+            const processedResult = await this.processGhlMetadata(callId, ghlMetadata, assistantId);
             return {
                 callId,
                 success: true,
@@ -591,15 +604,24 @@ export class VapiWebhookHandler {
             throw error;
         }
     }
-    async processGhlMetadata(callId, ghlMetadata) {
+    async processGhlMetadata(callId, ghlMetadata, assistantId) {
         try {
             Logger.info('[GHL_METADATA_PROCESS] Processing GHL metadata', {
                 callId,
+                assistantId,
                 metadataKeys: Object.keys(ghlMetadata),
                 fullGhlMetadata: ghlMetadata,
                 contactId: ghlMetadata.contactId,
                 source: ghlMetadata.source,
             });
+            // Set assistant ID in GHL connector if available
+            if (assistantId) {
+                this.ghlConnector.setAssistantId(assistantId);
+                Logger.info('[GHL_METADATA_PROCESS] Assistant ID set for GHL operations', {
+                    assistantId,
+                    callId,
+                });
+            }
             // Add your custom GHL metadata processing logic here
             // For example: trigger GHL actions based on metadata
             const results = [];
