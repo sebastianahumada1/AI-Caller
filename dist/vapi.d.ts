@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 export declare class VapiWebhookHandler {
     private ghlConnector;
     private vapiApiClient;
-    private fileStorage;
+    private slackService;
     private sentNotes;
+    private callSummaries;
     constructor();
     validateToken(req: Request, res: Response, next: () => void): void;
     handleWebhook(req: Request, res: Response): Promise<void>;
@@ -33,5 +34,12 @@ export declare class VapiWebhookHandler {
     private processGhlMetadata;
     scheduleMetadataPull(callId: string, delays?: number[]): Promise<void>;
     private sendFinalSummaryNote;
-    private saveCompleteCallDataAfterDelay;
+    /**
+     * Uploads a recording to Slack with context information
+     */
+    private uploadRecordingToSlack;
+    /**
+     * Test Slack connection
+     */
+    testSlackConnection(): Promise<boolean>;
 }

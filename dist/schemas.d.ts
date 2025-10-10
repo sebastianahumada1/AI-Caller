@@ -70,10 +70,13 @@ export declare const VapiEndOfCallReportMessageSchema: z.ZodObject<{
     timestamp: z.ZodOptional<z.ZodNumber>;
     call: z.ZodOptional<z.ZodObject<{
         id: z.ZodString;
+        recordingUrl: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
         id: string;
+        recordingUrl?: string | undefined;
     }, {
         id: string;
+        recordingUrl?: string | undefined;
     }>>;
     endedReason: z.ZodOptional<z.ZodString>;
     duration: z.ZodOptional<z.ZodNumber>;
@@ -94,14 +97,17 @@ export declare const VapiEndOfCallReportMessageSchema: z.ZodObject<{
         keywords?: string[] | undefined;
         actionItems?: string[] | undefined;
     }>>;
+    recordingUrl: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     type: "end-of-call-report";
     duration?: number | undefined;
     endedReason?: string | undefined;
     call?: {
         id: string;
+        recordingUrl?: string | undefined;
     } | undefined;
     timestamp?: number | undefined;
+    recordingUrl?: string | undefined;
     cost?: number | undefined;
     analysis?: {
         summary?: string | undefined;
@@ -115,8 +121,10 @@ export declare const VapiEndOfCallReportMessageSchema: z.ZodObject<{
     endedReason?: string | undefined;
     call?: {
         id: string;
+        recordingUrl?: string | undefined;
     } | undefined;
     timestamp?: number | undefined;
+    recordingUrl?: string | undefined;
     cost?: number | undefined;
     analysis?: {
         summary?: string | undefined;
@@ -326,10 +334,13 @@ export declare const VapiWebhookMessageSchema: z.ZodDiscriminatedUnion<"type", [
     timestamp: z.ZodOptional<z.ZodNumber>;
     call: z.ZodOptional<z.ZodObject<{
         id: z.ZodString;
+        recordingUrl: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
         id: string;
+        recordingUrl?: string | undefined;
     }, {
         id: string;
+        recordingUrl?: string | undefined;
     }>>;
     endedReason: z.ZodOptional<z.ZodString>;
     duration: z.ZodOptional<z.ZodNumber>;
@@ -350,14 +361,17 @@ export declare const VapiWebhookMessageSchema: z.ZodDiscriminatedUnion<"type", [
         keywords?: string[] | undefined;
         actionItems?: string[] | undefined;
     }>>;
+    recordingUrl: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     type: "end-of-call-report";
     duration?: number | undefined;
     endedReason?: string | undefined;
     call?: {
         id: string;
+        recordingUrl?: string | undefined;
     } | undefined;
     timestamp?: number | undefined;
+    recordingUrl?: string | undefined;
     cost?: number | undefined;
     analysis?: {
         summary?: string | undefined;
@@ -371,8 +385,10 @@ export declare const VapiWebhookMessageSchema: z.ZodDiscriminatedUnion<"type", [
     endedReason?: string | undefined;
     call?: {
         id: string;
+        recordingUrl?: string | undefined;
     } | undefined;
     timestamp?: number | undefined;
+    recordingUrl?: string | undefined;
     cost?: number | undefined;
     analysis?: {
         summary?: string | undefined;
@@ -579,10 +595,13 @@ export declare const VapiWebhookBodySchema: z.ZodObject<{
         timestamp: z.ZodOptional<z.ZodNumber>;
         call: z.ZodOptional<z.ZodObject<{
             id: z.ZodString;
+            recordingUrl: z.ZodOptional<z.ZodString>;
         }, "strip", z.ZodTypeAny, {
             id: string;
+            recordingUrl?: string | undefined;
         }, {
             id: string;
+            recordingUrl?: string | undefined;
         }>>;
         endedReason: z.ZodOptional<z.ZodString>;
         duration: z.ZodOptional<z.ZodNumber>;
@@ -603,14 +622,17 @@ export declare const VapiWebhookBodySchema: z.ZodObject<{
             keywords?: string[] | undefined;
             actionItems?: string[] | undefined;
         }>>;
+        recordingUrl: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
         type: "end-of-call-report";
         duration?: number | undefined;
         endedReason?: string | undefined;
         call?: {
             id: string;
+            recordingUrl?: string | undefined;
         } | undefined;
         timestamp?: number | undefined;
+        recordingUrl?: string | undefined;
         cost?: number | undefined;
         analysis?: {
             summary?: string | undefined;
@@ -624,8 +646,10 @@ export declare const VapiWebhookBodySchema: z.ZodObject<{
         endedReason?: string | undefined;
         call?: {
             id: string;
+            recordingUrl?: string | undefined;
         } | undefined;
         timestamp?: number | undefined;
+        recordingUrl?: string | undefined;
         cost?: number | undefined;
         analysis?: {
             summary?: string | undefined;
@@ -795,8 +819,10 @@ export declare const VapiWebhookBodySchema: z.ZodObject<{
         endedReason?: string | undefined;
         call?: {
             id: string;
+            recordingUrl?: string | undefined;
         } | undefined;
         timestamp?: number | undefined;
+        recordingUrl?: string | undefined;
         cost?: number | undefined;
         analysis?: {
             summary?: string | undefined;
@@ -864,8 +890,10 @@ export declare const VapiWebhookBodySchema: z.ZodObject<{
         endedReason?: string | undefined;
         call?: {
             id: string;
+            recordingUrl?: string | undefined;
         } | undefined;
         timestamp?: number | undefined;
+        recordingUrl?: string | undefined;
         cost?: number | undefined;
         analysis?: {
             summary?: string | undefined;

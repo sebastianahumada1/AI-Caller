@@ -2,18 +2,30 @@ import { ZodError } from 'zod';
 import { GHLConnector } from './ghl.js';
 import { Logger } from './utils/logger.js';
 import { VapiApiClient } from './utils/vapi-client.js';
-import { FileStorage } from './utils/file-storage.js';
+import { SlackService } from './utils/slack-service.js';
 import { VapiWebhookBodySchema, SendSmsArgsSchema, UpsertContactArgsSchema, AddTagArgsSchema, AddNoteArgsSchema, UpdateStageArgsSchema, } from './schemas.js';
 export class VapiWebhookHandler {
     ghlConnector;
     vapiApiClient;
-    fileStorage;
+    slackService;
     sentNotes; // Track sent notes to avoid duplicates
+    callSummaries; // Store summaries from end-of-call-report
     constructor() {
         this.ghlConnector = new GHLConnector();
         this.vapiApiClient = new VapiApiClient();
-        this.fileStorage = new FileStorage();
         this.sentNotes = new Set();
+        this.callSummaries = new Map();
+        // Initialize Slack service if credentials are available
+        try {
+            this.slackService = new SlackService();
+            Logger.info('[VAPI_HANDLER] Slack integration enabled');
+        }
+        catch (error) {
+            this.slackService = null;
+            Logger.warn('[VAPI_HANDLER] Slack integration disabled - missing credentials', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+            });
+        }
     }
     // Token validation middleware
     validateToken(req, res, next) {
@@ -248,6 +260,7 @@ export class VapiWebhookHandler {
         };
     }
     handleEndOfCallReport(message) {
+        const recordingUrl = message.call?.recordingUrl || message.recordingUrl;
         Logger.info('End of call report received', {
             callId: message.call?.id,
             timestamp: message.timestamp,
@@ -255,7 +268,30 @@ export class VapiWebhookHandler {
             duration: message.duration,
             cost: message.cost,
             analysis: message.analysis ? 'Analysis included' : 'Analysis pending',
+            hasRecording: !!recordingUrl,
         });
+        // Store the summary from end-of-call-report if available
+        if (message.call?.id && message.analysis?.summary) {
+            this.callSummaries.set(message.call.id, message.analysis.summary);
+            Logger.info('[END_OF_CALL] Summary stored for GHL note', {
+                callId: message.call.id,
+                summaryLength: message.analysis.summary.length,
+            });
+        }
+        // Upload recording to Slack if available
+        if (recordingUrl && message.call?.id && this.slackService) {
+            this.uploadRecordingToSlack(recordingUrl, message.call.id, {
+                duration: message.duration,
+                cost: message.cost,
+                summary: message.analysis?.summary,
+                sentiment: message.analysis?.sentiment,
+            }).catch(error => {
+                Logger.error('[SLACK_UPLOAD] Failed to upload recording', {
+                    callId: message.call.id,
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                });
+            });
+        }
         // Always schedule metadata pull when we receive end-of-call-report
         if (message.call?.id) {
             Logger.info('Scheduling metadata pull for end-of-call-report', {
@@ -293,7 +329,14 @@ export class VapiWebhookHandler {
                     callId,
                     hasAnalysis: true,
                 });
-                // Process the analysis if needed
+                // Store the summary if available
+                if (callDetails.analysis.summary) {
+                    this.callSummaries.set(callId, callDetails.analysis.summary);
+                    Logger.info('[ANALYSIS_POLL] Summary stored from polling', {
+                        callId,
+                        summaryLength: callDetails.analysis.summary.length,
+                    });
+                }
             }
             // Also check for GHL metadata
             if (callDetails.metadata?.ghl) {
@@ -334,22 +377,12 @@ export class VapiWebhookHandler {
             transcriptLength: message.transcript?.length || 0,
             transcript: message.isFinal ? message.transcript : message.transcript?.substring(0, 100) + '...',
         });
-        // Save transcript immediately (non-blocking)
-        if (message.call?.id && message.transcript) {
-            this.fileStorage.saveTranscript(message.call.id, message.transcript, message.role, message.isFinal).catch(error => {
-                Logger.error('[FILE_STORAGE] Transcript save failed', {
-                    callId: message.call.id,
-                    error: error instanceof Error ? error.message : 'Unknown error',
-                });
+        // Log transcript info but don't save to files - only send summary note to GHL
+        if (message.call?.id && message.transcript && message.isFinal) {
+            Logger.info('[TRANSCRIPT] Final transcript received, will be included in GHL summary note', {
+                callId: message.call.id,
+                transcriptLength: message.transcript.length,
             });
-            // If final transcript, trigger complete data save (but don't send note yet)
-            if (message.isFinal) {
-                this.saveCompleteCallDataAfterDelay(message.call.id, {
-                    transcript: message.transcript,
-                    role: message.role,
-                    isFinal: message.isFinal,
-                });
-            }
         }
         return {
             ok: true,
@@ -696,22 +729,17 @@ export class VapiWebhookHandler {
                         error: error instanceof Error ? error.message : 'Unknown error',
                     });
                 }
-                // Create summary note content
+                // Create summary note content with the actual summary from end-of-call-report
                 const timestamp = new Date().toISOString();
+                const storedSummary = this.callSummaries.get(callId);
                 const summaryContent = [
-                    `📞 LLAMADA COMPLETADA`,
+                    `📞 CALL COMPLETED`,
                     `Call ID: ${callId}`,
                     `Timestamp: ${timestamp}`,
-                    `Contact ID: ${data.contactId}`,
                     ``,
                     `📊 SUMMARY:`,
-                    `• Llamada procesada exitosamente`,
-                    `• Contacto identificado: ${data.contactId}`,
-                    `• Metadata disponible: ${finalData.metadata ? 'Sí' : 'No'}`,
-                    `• Fuente: ${finalData.metadata?.source || 'No especificada'}`,
-                    ``,
-                    `📝 DETALLES:`,
-                    finalData.metadata ? JSON.stringify(finalData.metadata, null, 2) : 'No hay metadata adicional disponible'
+                    `• Call processed successfully`,
+                    storedSummary ? `• ${storedSummary}` : `• There is no summary available from the call analysis`
                 ].join('\n');
                 // Send the summary note to GHL
                 const ghlResult = await this.ghlConnector.addNoteByContactIdViaAPI(`summary_${callId}`, data.contactId, summaryContent);
@@ -739,48 +767,50 @@ export class VapiWebhookHandler {
             }
         }, 10000); // Wait 10 seconds to collect all data
     }
-    // Efficient method to save complete call data after collecting everything (without sending note)
-    saveCompleteCallDataAfterDelay(callId, partialData) {
-        // Wait 5 seconds to collect any remaining data, then save everything
-        setTimeout(async () => {
-            try {
-                Logger.info('[CALL_DATA_SAVE] Starting complete call data collection', {
-                    callId,
-                    hasContactId: !!partialData.contactId,
-                    hasTranscript: !!partialData.transcript,
-                });
-                let finalData = { ...partialData };
-                // If we don't have metadata yet, try to get it
-                if (!finalData.contactId || !finalData.metadata) {
-                    try {
-                        const metadataResult = await this.pullCallMetadata(callId);
-                        if (metadataResult.ghlMetadata) {
-                            finalData.contactId = finalData.contactId || metadataResult.ghlMetadata.contactId;
-                            finalData.metadata = finalData.metadata || metadataResult.ghlMetadata;
-                        }
-                    }
-                    catch (error) {
-                        Logger.warn('[CALL_DATA_SAVE] Could not fetch additional metadata', {
-                            callId,
-                            error: error instanceof Error ? error.message : 'Unknown error',
-                        });
-                    }
-                }
-                // Save the complete call data (without sending note to GHL)
-                await this.fileStorage.saveCompleteCallData(callId, finalData);
-                Logger.info('[CALL_DATA_SAVE] Complete call data saved successfully', {
-                    callId,
-                    contactId: finalData.contactId,
-                    hasTranscript: !!finalData.transcript,
-                    hasMetadata: !!finalData.metadata,
-                });
-            }
-            catch (error) {
-                Logger.error('[CALL_DATA_SAVE] Failed to save complete call data', {
-                    callId,
-                    error: error instanceof Error ? error.message : 'Unknown error',
-                });
-            }
-        }, 5000); // Wait 5 seconds to collect all data
+    /**
+     * Uploads a recording to Slack with context information
+     */
+    async uploadRecordingToSlack(recordingUrl, callId, context) {
+        if (!this.slackService) {
+            Logger.warn('[SLACK_UPLOAD] Slack service not available', { callId });
+            return;
+        }
+        try {
+            Logger.info('[SLACK_UPLOAD] Starting recording upload to Slack', {
+                callId,
+                recordingUrl,
+                hasContext: !!context,
+            });
+            await this.slackService.uploadRecordingWithContext(recordingUrl, callId, context);
+            Logger.info('[SLACK_UPLOAD] Recording uploaded successfully to Slack', {
+                callId,
+            });
+        }
+        catch (error) {
+            Logger.error('[SLACK_UPLOAD] Failed to upload recording to Slack', {
+                callId,
+                recordingUrl,
+                error: error instanceof Error ? error.message : 'Unknown error',
+            });
+            throw error;
+        }
+    }
+    /**
+     * Test Slack connection
+     */
+    async testSlackConnection() {
+        if (!this.slackService) {
+            Logger.warn('[SLACK_TEST] Slack service not available');
+            return false;
+        }
+        try {
+            return await this.slackService.testConnection();
+        }
+        catch (error) {
+            Logger.error('[SLACK_TEST] Connection test failed', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+            });
+            return false;
+        }
     }
 }

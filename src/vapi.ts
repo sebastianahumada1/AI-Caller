@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { GHLConnector } from './ghl.js';
 import { Logger } from './utils/logger.js';
 import { VapiApiClient } from './utils/vapi-client.js';
+import { SlackService } from './utils/slack-service.js';
 import {
   VapiWebhookBodySchema,
   VapiWebhookBody,
@@ -19,6 +20,7 @@ import {
 export class VapiWebhookHandler {
   private ghlConnector: GHLConnector;
   private vapiApiClient: VapiApiClient;
+  private slackService: SlackService | null;
   private sentNotes: Set<string>; // Track sent notes to avoid duplicates
   private callSummaries: Map<string, string>; // Store summaries from end-of-call-report
 
@@ -27,6 +29,17 @@ export class VapiWebhookHandler {
     this.vapiApiClient = new VapiApiClient();
     this.sentNotes = new Set();
     this.callSummaries = new Map();
+    
+    // Initialize Slack service if credentials are available
+    try {
+      this.slackService = new SlackService();
+      Logger.info('[VAPI_HANDLER] Slack integration enabled');
+    } catch (error) {
+      this.slackService = null;
+      Logger.warn('[VAPI_HANDLER] Slack integration disabled - missing credentials', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 
   // Token validation middleware
@@ -297,6 +310,8 @@ export class VapiWebhookHandler {
   }
 
   private handleEndOfCallReport(message: any): WebhookResponse {
+    const recordingUrl = message.call?.recordingUrl || message.recordingUrl;
+    
     Logger.info('End of call report received', {
       callId: message.call?.id,
       timestamp: message.timestamp,
@@ -304,6 +319,7 @@ export class VapiWebhookHandler {
       duration: message.duration,
       cost: message.cost,
       analysis: message.analysis ? 'Analysis included' : 'Analysis pending',
+      hasRecording: !!recordingUrl,
     });
 
     // Store the summary from end-of-call-report if available
@@ -312,6 +328,25 @@ export class VapiWebhookHandler {
       Logger.info('[END_OF_CALL] Summary stored for GHL note', {
         callId: message.call.id,
         summaryLength: message.analysis.summary.length,
+      });
+    }
+
+    // Upload recording to Slack if available
+    if (recordingUrl && message.call?.id && this.slackService) {
+      this.uploadRecordingToSlack(
+        recordingUrl,
+        message.call.id,
+        {
+          duration: message.duration,
+          cost: message.cost,
+          summary: message.analysis?.summary,
+          sentiment: message.analysis?.sentiment,
+        }
+      ).catch(error => {
+        Logger.error('[SLACK_UPLOAD] Failed to upload recording', {
+          callId: message.call.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
       });
     }
 
@@ -867,6 +902,70 @@ export class VapiWebhookHandler {
         });
       }
     }, 10000); // Wait 10 seconds to collect all data
+  }
+
+  /**
+   * Uploads a recording to Slack with context information
+   */
+  private async uploadRecordingToSlack(
+    recordingUrl: string,
+    callId: string,
+    context?: {
+      duration?: number;
+      cost?: number;
+      summary?: string;
+      sentiment?: string;
+    }
+  ): Promise<void> {
+    if (!this.slackService) {
+      Logger.warn('[SLACK_UPLOAD] Slack service not available', { callId });
+      return;
+    }
+
+    try {
+      Logger.info('[SLACK_UPLOAD] Starting recording upload to Slack', {
+        callId,
+        recordingUrl,
+        hasContext: !!context,
+      });
+
+      await this.slackService.uploadRecordingWithContext(
+        recordingUrl,
+        callId,
+        context
+      );
+
+      Logger.info('[SLACK_UPLOAD] Recording uploaded successfully to Slack', {
+        callId,
+      });
+
+    } catch (error) {
+      Logger.error('[SLACK_UPLOAD] Failed to upload recording to Slack', {
+        callId,
+        recordingUrl,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Test Slack connection
+   */
+  async testSlackConnection(): Promise<boolean> {
+    if (!this.slackService) {
+      Logger.warn('[SLACK_TEST] Slack service not available');
+      return false;
+    }
+
+    try {
+      return await this.slackService.testConnection();
+    } catch (error) {
+      Logger.error('[SLACK_TEST] Connection test failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return false;
+    }
   }
 
 }

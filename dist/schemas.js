@@ -21,6 +21,7 @@ export const VapiEndOfCallReportMessageSchema = z.object({
     timestamp: z.number().optional(),
     call: z.object({
         id: z.string(),
+        recordingUrl: z.string().optional(), // URL of the call recording
     }).optional(),
     endedReason: z.string().optional(),
     duration: z.number().optional(),
@@ -32,6 +33,7 @@ export const VapiEndOfCallReportMessageSchema = z.object({
         actionItems: z.array(z.string()).optional(),
         // Add other analysis fields based on what Vapi provides
     }).optional(),
+    recordingUrl: z.string().optional(), // Alternative location for recording URL
 });
 export const VapiTranscriptMessageSchema = z.object({
     type: z.literal('transcript'),
