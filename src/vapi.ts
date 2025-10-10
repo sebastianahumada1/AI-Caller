@@ -117,10 +117,19 @@ export class VapiWebhookHandler {
 
   private async processMessage(webhookBody: VapiWebhookBody): Promise<WebhookResponse> {
     const { message } = webhookBody;
+    const assistantId = (message as any).call?.assistantId;
+
+    // Log assistant ID if available
+    if (assistantId) {
+      Logger.info('[WEBHOOK] Processing message for assistant', {
+        type: message.type,
+        assistantId,
+      });
+    }
 
     switch (message.type) {
       case 'tool-calls':
-        return await this.handleToolCalls(message.toolCallList);
+        return await this.handleToolCalls(message.toolCallList, assistantId);
       
       case 'call.ended':
         return this.handleCallEnded(message);
@@ -149,8 +158,16 @@ export class VapiWebhookHandler {
     }
   }
 
-  private async handleToolCalls(toolCallList: VapiToolCall[]): Promise<WebhookResponse> {
-    Logger.info('Processing tool calls', { count: toolCallList.length });
+  private async handleToolCalls(toolCallList: VapiToolCall[], assistantId?: string): Promise<WebhookResponse> {
+    Logger.info('Processing tool calls', { 
+      count: toolCallList.length,
+      assistantId,
+    });
+    
+    // Set assistant ID in GHL connector if available
+    if (assistantId) {
+      this.ghlConnector.setAssistantId(assistantId);
+    }
     
     const results: ToolResult[] = [];
 

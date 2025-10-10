@@ -4,7 +4,16 @@ export declare class GHLConnector {
     private readonly defaultWebhookUrl;
     private readonly bookingWebhookUrl;
     private readonly depositWebhookUrl;
-    constructor();
+    private assistantId;
+    constructor(assistantId?: string);
+    /**
+     * Set the Assistant ID for this connector instance
+     */
+    setAssistantId(assistantId: string): void;
+    /**
+     * Get the appropriate GHL API Key based on Assistant ID
+     */
+    private getGHLApiKey;
     sendSms(id: string, args: SendSmsArgs): Promise<ToolResult>;
     upsertContact(id: string, args: UpsertContactArgs): Promise<ToolResult>;
     addTag(id: string, args: AddTagArgs): Promise<ToolResult>;

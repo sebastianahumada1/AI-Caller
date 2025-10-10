@@ -8,6 +8,10 @@ export const VapiToolCallSchema = z.object({
 export const VapiToolCallsMessageSchema = z.object({
     type: z.literal('tool-calls'),
     toolCallList: z.array(VapiToolCallSchema),
+    call: z.object({
+        id: z.string().optional(),
+        assistantId: z.string().optional(),
+    }).optional(),
 });
 export const VapiCallEndedMessageSchema = z.object({
     type: z.literal('call.ended'),
@@ -21,6 +25,7 @@ export const VapiEndOfCallReportMessageSchema = z.object({
     timestamp: z.number().optional(),
     call: z.object({
         id: z.string(),
+        assistantId: z.string().optional(), // VAPI Assistant ID
         recordingUrl: z.string().optional(), // URL of the call recording
     }).optional(),
     endedReason: z.string().optional(),
