@@ -778,6 +778,7 @@ export class VapiWebhookHandler {
                 tag,
                 phone: ghlMetadata.contact?.phone,
                 email: ghlMetadata.contact?.email,
+                apiKey: 'primary',
               }
             );
             results.push({

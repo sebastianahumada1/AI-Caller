@@ -1027,9 +1027,11 @@ export declare const SendSmsArgsSchema: z.ZodObject<{
     template: z.ZodOptional<z.ZodEnum<["booking", "deposit"]>>;
     callId: z.ZodOptional<z.ZodString>;
     body: z.ZodString;
+    apiKey: z.ZodDefault<z.ZodOptional<z.ZodEnum<["primary", "secondary", "third"]>>>;
 }, "strip", z.ZodTypeAny, {
     body: string;
     phone: string;
+    apiKey: "primary" | "secondary" | "third";
     firstName?: string | undefined;
     template?: "booking" | "deposit" | undefined;
     callId?: string | undefined;
@@ -1039,6 +1041,7 @@ export declare const SendSmsArgsSchema: z.ZodObject<{
     firstName?: string | undefined;
     template?: "booking" | "deposit" | undefined;
     callId?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
 }>;
 export declare const UpsertContactArgsSchema: z.ZodEffects<z.ZodObject<{
     phone: z.ZodOptional<z.ZodString>;
@@ -1046,7 +1049,9 @@ export declare const UpsertContactArgsSchema: z.ZodEffects<z.ZodObject<{
     firstName: z.ZodOptional<z.ZodString>;
     lastName: z.ZodOptional<z.ZodString>;
     name: z.ZodOptional<z.ZodString>;
+    apiKey: z.ZodDefault<z.ZodOptional<z.ZodEnum<["primary", "secondary", "third"]>>>;
 }, "strip", z.ZodTypeAny, {
+    apiKey: "primary" | "secondary" | "third";
     name?: string | undefined;
     phone?: string | undefined;
     firstName?: string | undefined;
@@ -1056,9 +1061,11 @@ export declare const UpsertContactArgsSchema: z.ZodEffects<z.ZodObject<{
     name?: string | undefined;
     phone?: string | undefined;
     firstName?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
     email?: string | undefined;
     lastName?: string | undefined;
 }>, {
+    apiKey: "primary" | "secondary" | "third";
     name?: string | undefined;
     phone?: string | undefined;
     firstName?: string | undefined;
@@ -1068,6 +1075,7 @@ export declare const UpsertContactArgsSchema: z.ZodEffects<z.ZodObject<{
     name?: string | undefined;
     phone?: string | undefined;
     firstName?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
     email?: string | undefined;
     lastName?: string | undefined;
 }>;
@@ -1075,42 +1083,52 @@ export declare const AddTagArgsSchema: z.ZodEffects<z.ZodObject<{
     phone: z.ZodOptional<z.ZodString>;
     email: z.ZodOptional<z.ZodString>;
     tag: z.ZodString;
+    apiKey: z.ZodDefault<z.ZodOptional<z.ZodEnum<["primary", "secondary", "third"]>>>;
 }, "strip", z.ZodTypeAny, {
+    apiKey: "primary" | "secondary" | "third";
     tag: string;
     phone?: string | undefined;
     email?: string | undefined;
 }, {
     tag: string;
     phone?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
     email?: string | undefined;
 }>, {
+    apiKey: "primary" | "secondary" | "third";
     tag: string;
     phone?: string | undefined;
     email?: string | undefined;
 }, {
     tag: string;
     phone?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
     email?: string | undefined;
 }>;
 export declare const AddNoteArgsSchema: z.ZodEffects<z.ZodObject<{
     phone: z.ZodOptional<z.ZodString>;
     email: z.ZodOptional<z.ZodString>;
     note: z.ZodString;
+    apiKey: z.ZodDefault<z.ZodOptional<z.ZodEnum<["primary", "secondary", "third"]>>>;
 }, "strip", z.ZodTypeAny, {
+    apiKey: "primary" | "secondary" | "third";
     note: string;
     phone?: string | undefined;
     email?: string | undefined;
 }, {
     note: string;
     phone?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
     email?: string | undefined;
 }>, {
+    apiKey: "primary" | "secondary" | "third";
     note: string;
     phone?: string | undefined;
     email?: string | undefined;
 }, {
     note: string;
     phone?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
     email?: string | undefined;
 }>;
 export declare const UpdateStageArgsSchema: z.ZodEffects<z.ZodObject<{
@@ -1119,7 +1137,9 @@ export declare const UpdateStageArgsSchema: z.ZodEffects<z.ZodObject<{
     pipelineId: z.ZodString;
     stageId: z.ZodString;
     note: z.ZodOptional<z.ZodString>;
+    apiKey: z.ZodDefault<z.ZodOptional<z.ZodEnum<["primary", "secondary", "third"]>>>;
 }, "strip", z.ZodTypeAny, {
+    apiKey: "primary" | "secondary" | "third";
     pipelineId: string;
     stageId: string;
     phone?: string | undefined;
@@ -1129,9 +1149,11 @@ export declare const UpdateStageArgsSchema: z.ZodEffects<z.ZodObject<{
     pipelineId: string;
     stageId: string;
     phone?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
     email?: string | undefined;
     note?: string | undefined;
 }>, {
+    apiKey: "primary" | "secondary" | "third";
     pipelineId: string;
     stageId: string;
     phone?: string | undefined;
@@ -1141,6 +1163,7 @@ export declare const UpdateStageArgsSchema: z.ZodEffects<z.ZodObject<{
     pipelineId: string;
     stageId: string;
     phone?: string | undefined;
+    apiKey?: "primary" | "secondary" | "third" | undefined;
     email?: string | undefined;
     note?: string | undefined;
 }>;

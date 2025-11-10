@@ -29,6 +29,16 @@ export class ClientConfigManager {
             westTexasConfig.slackChannelId = process.env.SLACK_CHANNEL_ID_WEST_TEXAS;
         }
         this.configs.set('09c07269-4462-4469-96ac-c4eb06146571', westTexasConfig);
+        // Third Client Configuration
+        const thirdClientConfig = {
+            name: 'Third Client',
+            assistantId: '39ba1969-84bf-4991-ab9e-9b234178f5c2',
+            ghlApiKey: process.env.GHL_API_KEY_THIRD || 'pit-38da7913-a22e-46b4-873e-f4bb24de234b',
+        };
+        if (process.env.SLACK_CHANNEL_ID_THIRD_CLIENT) {
+            thirdClientConfig.slackChannelId = process.env.SLACK_CHANNEL_ID_THIRD_CLIENT;
+        }
+        this.configs.set('39ba1969-84bf-4991-ab9e-9b234178f5c2', thirdClientConfig);
         Logger.info('[CLIENT_CONFIG] Initialized client configurations', {
             clientCount: this.configs.size,
             clients: Array.from(this.configs.values()).map(c => c.name),

@@ -102,6 +102,7 @@ export const SendSmsArgsSchema = z.object({
     template: z.enum(['booking', 'deposit']).optional(),
     callId: z.string().optional(),
     body: z.string().min(1),
+    apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 });
 export const UpsertContactArgsSchema = z.object({
     phone: z.string().optional(),
@@ -109,6 +110,7 @@ export const UpsertContactArgsSchema = z.object({
     firstName: z.string().optional(),
     lastName: z.string().optional(),
     name: z.string().optional(),
+    apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 }).refine(data => data.phone || data.email, {
     message: "Either phone or email must be provided"
 });
@@ -116,6 +118,7 @@ export const AddTagArgsSchema = z.object({
     phone: z.string().optional(),
     email: z.string().email().optional(),
     tag: z.string().min(1),
+    apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 }).refine(data => data.phone || data.email, {
     message: "Either phone or email must be provided"
 });
@@ -123,6 +126,7 @@ export const AddNoteArgsSchema = z.object({
     phone: z.string().optional(),
     email: z.string().email().optional(),
     note: z.string().min(1),
+    apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 }).refine(data => data.phone || data.email, {
     message: "Either phone or email must be provided"
 });
@@ -132,6 +136,7 @@ export const UpdateStageArgsSchema = z.object({
     pipelineId: z.string().min(1),
     stageId: z.string().min(1),
     note: z.string().optional(),
+    apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 }).refine(data => data.phone || data.email, {
     message: "Either phone or email must be provided"
 });
