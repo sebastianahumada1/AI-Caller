@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { GHLConnector } from './ghl.js';
 import { Logger } from './utils/logger.js';
 import { VapiApiClient } from './utils/vapi-client.js';
+import { SlackService } from './utils/slack-service.js';
 import {
   VapiWebhookBodySchema,
   VapiWebhookBody,
@@ -19,6 +20,7 @@ import {
 export class VapiWebhookHandler {
   private ghlConnector: GHLConnector;
   private vapiApiClient: VapiApiClient;
+  private slackService: SlackService | null;
   private sentNotes: Set<string>; // Track sent notes to avoid duplicates
   private callSummaries: Map<string, string>; // Store summaries from end-of-call-report
 
@@ -27,6 +29,17 @@ export class VapiWebhookHandler {
     this.vapiApiClient = new VapiApiClient();
     this.sentNotes = new Set();
     this.callSummaries = new Map();
+    
+    // Initialize Slack service if credentials are available
+    try {
+      this.slackService = new SlackService();
+      Logger.info('[VAPI_HANDLER] Slack integration enabled');
+    } catch (error) {
+      this.slackService = null;
+      Logger.warn('[VAPI_HANDLER] Slack integration disabled - missing credentials', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 
   // Token validation middleware
@@ -104,10 +117,19 @@ export class VapiWebhookHandler {
 
   private async processMessage(webhookBody: VapiWebhookBody): Promise<WebhookResponse> {
     const { message } = webhookBody;
+    const assistantId = (message as any).call?.assistantId;
+
+    // Log assistant ID if available
+    if (assistantId) {
+      Logger.info('[WEBHOOK] Processing message for assistant', {
+        type: message.type,
+        assistantId,
+      });
+    }
 
     switch (message.type) {
       case 'tool-calls':
-        return await this.handleToolCalls(message.toolCallList);
+        return await this.handleToolCalls(message.toolCallList, assistantId);
       
       case 'call.ended':
         return this.handleCallEnded(message);
@@ -136,8 +158,16 @@ export class VapiWebhookHandler {
     }
   }
 
-  private async handleToolCalls(toolCallList: VapiToolCall[]): Promise<WebhookResponse> {
-    Logger.info('Processing tool calls', { count: toolCallList.length });
+  private async handleToolCalls(toolCallList: VapiToolCall[], assistantId?: string): Promise<WebhookResponse> {
+    Logger.info('Processing tool calls', { 
+      count: toolCallList.length,
+      assistantId,
+    });
+    
+    // Set assistant ID in GHL connector if available
+    if (assistantId) {
+      this.ghlConnector.setAssistantId(assistantId);
+    }
     
     const results: ToolResult[] = [];
 
@@ -297,14 +327,28 @@ export class VapiWebhookHandler {
   }
 
   private handleEndOfCallReport(message: any): WebhookResponse {
+    const recordingUrl = message.call?.recordingUrl || message.recordingUrl;
+    const assistantId = message.call?.assistantId;
+    
     Logger.info('End of call report received', {
       callId: message.call?.id,
+      assistantId,
       timestamp: message.timestamp,
       endedReason: message.endedReason,
       duration: message.duration,
       cost: message.cost,
       analysis: message.analysis ? 'Analysis included' : 'Analysis pending',
+      hasRecording: !!recordingUrl,
     });
+
+    // Set assistant ID in GHL connector if available
+    if (assistantId) {
+      this.ghlConnector.setAssistantId(assistantId);
+      Logger.info('[END_OF_CALL] Assistant ID set for GHL operations', {
+        assistantId,
+        callId: message.call?.id,
+      });
+    }
 
     // Store the summary from end-of-call-report if available
     if (message.call?.id && message.analysis?.summary) {
@@ -312,6 +356,25 @@ export class VapiWebhookHandler {
       Logger.info('[END_OF_CALL] Summary stored for GHL note', {
         callId: message.call.id,
         summaryLength: message.analysis.summary.length,
+      });
+    }
+
+    // Upload recording to Slack if available
+    if (recordingUrl && message.call?.id && this.slackService) {
+      this.uploadRecordingToSlack(
+        recordingUrl,
+        message.call.id,
+        {
+          duration: message.duration,
+          cost: message.cost,
+          summary: message.analysis?.summary,
+          sentiment: message.analysis?.sentiment,
+        }
+      ).catch(error => {
+        Logger.error('[SLACK_UPLOAD] Failed to upload recording', {
+          callId: message.call.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
       });
     }
 
@@ -379,8 +442,9 @@ export class VapiWebhookHandler {
           ghlKeys: Object.keys(callDetails.metadata.ghl),
         });
         
-        // Process the GHL metadata
-        await this.processGhlMetadata(callId, callDetails.metadata.ghl);
+        // Process the GHL metadata with assistant ID
+        const assistantId = callDetails.assistantId;
+        await this.processGhlMetadata(callId, callDetails.metadata.ghl, assistantId);
       }
       
       Logger.info('[ANALYSIS_POLL] Analysis poll completed', {
@@ -628,8 +692,11 @@ export class VapiWebhookHandler {
         source: ghlMetadata.source,
       });
       
+      // Get assistant ID from full call data
+      const assistantId = metadataResult.fullCall?.assistantId;
+      
       // Process the GHL metadata - you can add custom logic here
-      const processedResult = await this.processGhlMetadata(callId, ghlMetadata);
+      const processedResult = await this.processGhlMetadata(callId, ghlMetadata, assistantId);
       
       return {
         callId,
@@ -647,15 +714,25 @@ export class VapiWebhookHandler {
     }
   }
 
-  private async processGhlMetadata(callId: string, ghlMetadata: any): Promise<any> {
+  private async processGhlMetadata(callId: string, ghlMetadata: any, assistantId?: string): Promise<any> {
     try {
       Logger.info('[GHL_METADATA_PROCESS] Processing GHL metadata', {
         callId,
+        assistantId,
         metadataKeys: Object.keys(ghlMetadata),
         fullGhlMetadata: ghlMetadata,
         contactId: ghlMetadata.contactId,
         source: ghlMetadata.source,
       });
+      
+      // Set assistant ID in GHL connector if available
+      if (assistantId) {
+        this.ghlConnector.setAssistantId(assistantId);
+        Logger.info('[GHL_METADATA_PROCESS] Assistant ID set for GHL operations', {
+          assistantId,
+          callId,
+        });
+      }
       
       // Add your custom GHL metadata processing logic here
       // For example: trigger GHL actions based on metadata
@@ -701,6 +778,7 @@ export class VapiWebhookHandler {
                 tag,
                 phone: ghlMetadata.contact?.phone,
                 email: ghlMetadata.contact?.email,
+                apiKey: 'primary',
               }
             );
             results.push({
@@ -867,6 +945,70 @@ export class VapiWebhookHandler {
         });
       }
     }, 10000); // Wait 10 seconds to collect all data
+  }
+
+  /**
+   * Uploads a recording to Slack with context information
+   */
+  private async uploadRecordingToSlack(
+    recordingUrl: string,
+    callId: string,
+    context?: {
+      duration?: number;
+      cost?: number;
+      summary?: string;
+      sentiment?: string;
+    }
+  ): Promise<void> {
+    if (!this.slackService) {
+      Logger.warn('[SLACK_UPLOAD] Slack service not available', { callId });
+      return;
+    }
+
+    try {
+      Logger.info('[SLACK_UPLOAD] Starting recording upload to Slack', {
+        callId,
+        recordingUrl,
+        hasContext: !!context,
+      });
+
+      await this.slackService.uploadRecordingWithContext(
+        recordingUrl,
+        callId,
+        context
+      );
+
+      Logger.info('[SLACK_UPLOAD] Recording uploaded successfully to Slack', {
+        callId,
+      });
+
+    } catch (error) {
+      Logger.error('[SLACK_UPLOAD] Failed to upload recording to Slack', {
+        callId,
+        recordingUrl,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Test Slack connection
+   */
+  async testSlackConnection(): Promise<boolean> {
+    if (!this.slackService) {
+      Logger.warn('[SLACK_TEST] Slack service not available');
+      return false;
+    }
+
+    try {
+      return await this.slackService.testConnection();
+    } catch (error) {
+      Logger.error('[SLACK_TEST] Connection test failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return false;
+    }
   }
 
 }

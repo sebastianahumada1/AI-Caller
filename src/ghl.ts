@@ -1,5 +1,6 @@
 import { HttpClient } from './utils/http.js';
 import { Logger } from './utils/logger.js';
+import { ClientConfigManager } from './utils/client-config.js';
 import {
   SendSmsArgs,
   UpsertContactArgs,
@@ -14,12 +15,59 @@ export class GHLConnector {
   private readonly defaultWebhookUrl: string | undefined;
   private readonly bookingWebhookUrl: string | undefined;
   private readonly depositWebhookUrl: string | undefined;
+  private assistantId: string | null = null;
 
-  constructor() {
+  constructor(assistantId?: string) {
     this.httpClient = new HttpClient();
     this.defaultWebhookUrl = process.env.GHL_INCOMING_WEBHOOK_URL_DEFAULT;
     this.bookingWebhookUrl = process.env.GHL_INCOMING_WEBHOOK_URL_BOOKING;
     this.depositWebhookUrl = process.env.GHL_INCOMING_WEBHOOK_URL_DEPOSIT;
+    this.assistantId = assistantId || null;
+
+    if (this.assistantId) {
+      const clientName = ClientConfigManager.getClientName(this.assistantId);
+      Logger.info('[GHL_CONNECTOR] Initialized for client', {
+        assistantId: this.assistantId,
+        clientName,
+      });
+    }
+  }
+
+  /**
+   * Set the Assistant ID for this connector instance
+   */
+  setAssistantId(assistantId: string): void {
+    this.assistantId = assistantId;
+    const clientName = ClientConfigManager.getClientName(assistantId);
+    Logger.info('[GHL_CONNECTOR] Assistant ID set', {
+      assistantId,
+      clientName,
+    });
+  }
+
+  /**
+   * Get the appropriate GHL API Key based on Assistant ID
+   */
+  private getGHLApiKey(): string {
+    if (this.assistantId) {
+      const apiKey = ClientConfigManager.getGHLApiKey(this.assistantId);
+      if (apiKey) {
+        Logger.info('[GHL_CONNECTOR] Using client-specific API key', {
+          assistantId: this.assistantId,
+          clientName: ClientConfigManager.getClientName(this.assistantId),
+        });
+        return apiKey;
+      }
+    }
+
+    // Fallback to default API key from environment
+    const defaultKey = process.env.GHL_API_KEY;
+    if (!defaultKey) {
+      Logger.warn('[GHL_CONNECTOR] No API key found for assistant, using default', {
+        assistantId: this.assistantId,
+      });
+    }
+    return defaultKey || '';
   }
 
   async sendSms(id: string, args: SendSmsArgs): Promise<ToolResult> {
@@ -308,10 +356,14 @@ export class GHLConnector {
         noteLength: note.length 
       });
 
-      const ghlApiKey = process.env.GHL_API_KEY;
+      const ghlApiKey = this.getGHLApiKey();
       if (!ghlApiKey) {
-        const error = 'GHL_API_KEY environment variable not set';
-        Logger.error('[GHL] ' + error, { id, contactId });
+        const error = 'GHL_API_KEY not configured for this client';
+        Logger.error('[GHL] ' + error, { 
+          id, 
+          contactId,
+          assistantId: this.assistantId,
+        });
         return {
           id,
           ok: false,

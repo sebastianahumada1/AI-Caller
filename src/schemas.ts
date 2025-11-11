@@ -10,6 +10,10 @@ export const VapiToolCallSchema = z.object({
 export const VapiToolCallsMessageSchema = z.object({
   type: z.literal('tool-calls'),
   toolCallList: z.array(VapiToolCallSchema),
+  call: z.object({
+    id: z.string().optional(),
+    assistantId: z.string().optional(),
+  }).optional(),
 });
 
 export const VapiCallEndedMessageSchema = z.object({
@@ -25,6 +29,8 @@ export const VapiEndOfCallReportMessageSchema = z.object({
   timestamp: z.number().optional(),
   call: z.object({
     id: z.string(),
+    assistantId: z.string().optional(), // VAPI Assistant ID
+    recordingUrl: z.string().optional(), // URL of the call recording
   }).optional(),
   endedReason: z.string().optional(),
   duration: z.number().optional(),
@@ -36,6 +42,7 @@ export const VapiEndOfCallReportMessageSchema = z.object({
     actionItems: z.array(z.string()).optional(),
     // Add other analysis fields based on what Vapi provides
   }).optional(),
+  recordingUrl: z.string().optional(), // Alternative location for recording URL
 });
 
 export const VapiTranscriptMessageSchema = z.object({
@@ -106,6 +113,7 @@ export const SendSmsArgsSchema = z.object({
   template: z.enum(['booking', 'deposit']).optional(),
   callId: z.string().optional(),
   body: z.string().min(1),
+  apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 });
 
 export const UpsertContactArgsSchema = z.object({
@@ -114,6 +122,7 @@ export const UpsertContactArgsSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   name: z.string().optional(),
+  apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 }).refine(data => data.phone || data.email, {
   message: "Either phone or email must be provided"
 });
@@ -122,6 +131,7 @@ export const AddTagArgsSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email().optional(),
   tag: z.string().min(1),
+  apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 }).refine(data => data.phone || data.email, {
   message: "Either phone or email must be provided"
 });
@@ -130,6 +140,7 @@ export const AddNoteArgsSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email().optional(),
   note: z.string().min(1),
+  apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 }).refine(data => data.phone || data.email, {
   message: "Either phone or email must be provided"
 });
@@ -140,6 +151,7 @@ export const UpdateStageArgsSchema = z.object({
   pipelineId: z.string().min(1),
   stageId: z.string().min(1),
   note: z.string().optional(),
+  apiKey: z.enum(['primary', 'secondary', 'third']).optional().default('primary'),
 }).refine(data => data.phone || data.email, {
   message: "Either phone or email must be provided"
 });

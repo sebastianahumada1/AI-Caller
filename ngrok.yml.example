@@ -1,0 +1,20 @@
+version: "2"
+# Get your authtoken from: https://dashboard.ngrok.com/get-started/your-authtoken
+authtoken: YOUR_NGROK_AUTH_TOKEN_HERE
+
+tunnels:
+  vapi-webhook:
+    addr: vapi-ghl-connector:3000
+    proto: http
+    inspect: true
+    # Uncomment and set your custom domain if you have ngrok paid plan:
+    # domain: your-custom-domain.ngrok-free.app
+    
+    # Optional: Add basic auth for extra security
+    # auth: "username:password"
+    
+    # Optional: Custom subdomain (requires paid plan)
+    # subdomain: your-subdomain
+    
+    # Optional: Bind to specific host header
+    # host_header: "rewrite"

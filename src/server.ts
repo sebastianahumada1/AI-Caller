@@ -53,11 +53,14 @@ app.get('/health', (_req, res) => {
       vapiApiKey: !!process.env.VAPI_API_KEY,
       vapiApiBaseUrl: !!process.env.VAPI_API_BASE_URL,
       ghlApiKey: !!process.env.GHL_API_KEY,
+      slackBotToken: !!process.env.SLACK_BOT_TOKEN,
+      slackChannelId: !!process.env.SLACK_CHANNEL_ID,
     },
     features: {
       metadataPull: true,
       ghlToolSupport: true,
       scheduledPolling: true,
+      slackIntegration: !!(process.env.SLACK_BOT_TOKEN && process.env.SLACK_CHANNEL_ID),
     },
   };
 
@@ -127,6 +130,46 @@ app.post('/vapi/pull-metadata',
         ok: false,
         message: 'Failed to pull metadata',
         error: errorMessage,
+      });
+    }
+  }
+);
+
+// Slack connection test endpoint
+app.post('/slack/test',
+  (req, res, next) => vapiHandler.validateToken(req, res, next),
+  async (_req, res) => {
+    try {
+      Logger.info('[SLACK_TEST] Slack connection test requested');
+      
+      const isConnected = await vapiHandler.testSlackConnection();
+      
+      if (isConnected) {
+        Logger.info('[SLACK_TEST] Slack connection test successful');
+        return res.status(200).json({
+          ok: true,
+          message: 'Slack connection successful',
+          connected: true,
+        });
+      } else {
+        Logger.warn('[SLACK_TEST] Slack connection test failed');
+        return res.status(200).json({
+          ok: false,
+          message: 'Slack connection failed',
+          connected: false,
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Logger.error('[SLACK_TEST] Slack connection test error', {
+        error: errorMessage,
+      });
+      
+      return res.status(500).json({
+        ok: false,
+        message: 'Slack connection test failed',
+        error: errorMessage,
+        connected: false,
       });
     }
   }
