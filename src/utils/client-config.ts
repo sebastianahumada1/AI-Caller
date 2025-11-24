@@ -54,6 +54,17 @@ export class ClientConfigManager {
     }
     this.configs.set('39ba1969-84bf-4991-ab9e-9b234178f5c2', thirdClientConfig);
 
+    // Data Driven Practices Configuration
+    const dataDrivenConfig: ClientConfig = {
+      name: 'Data Driven Practices',
+      assistantId: '30abcadf-9a7c-4db7-8e5f-3d82977f1f5d',
+      ghlApiKey: process.env.GHL_API_KEY_FOURTH || 'pit-bd654d7f-815a-4ae1-b593-62a0bc1ca497',
+    };
+    if (process.env.SLACK_CHANNEL_ID_DATA_DRIVEN_PRACTICES) {
+      dataDrivenConfig.slackChannelId = process.env.SLACK_CHANNEL_ID_DATA_DRIVEN_PRACTICES;
+    }
+    this.configs.set('30abcadf-9a7c-4db7-8e5f-3d82977f1f5d', dataDrivenConfig);
+
     Logger.info('[CLIENT_CONFIG] Initialized client configurations', {
       clientCount: this.configs.size,
       clients: Array.from(this.configs.values()).map(c => c.name),
