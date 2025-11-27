@@ -12,4 +12,3 @@ Dockerfile*
 *.md
 !README.md
 src/
-tsconfig.json
