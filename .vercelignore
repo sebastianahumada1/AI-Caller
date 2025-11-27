@@ -11,4 +11,3 @@ Dockerfile*
 .gitignore
 *.md
 !README.md
-src/
