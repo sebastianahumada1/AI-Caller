@@ -215,14 +215,17 @@ function gracefulShutdown(signal: string) {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// Start server
-app.listen(port, () => {
-  Logger.info('Server started', {
-    port,
-    environment: process.env.NODE_ENV || 'development',
-    corsOrigin: process.env.CORS_ORIGIN || '*',
-    webhookConfigured: !!process.env.WEBHOOK_TOKEN,
+// Only start server if not in serverless environment (Vercel, etc.)
+// Vercel will handle the server, so we just export the app
+if (process.env.VERCEL !== '1' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  app.listen(port, () => {
+    Logger.info('Server started', {
+      port,
+      environment: process.env.NODE_ENV || 'development',
+      corsOrigin: process.env.CORS_ORIGIN || '*',
+      webhookConfigured: !!process.env.WEBHOOK_TOKEN,
+    });
   });
-});
+}
 
 export default app;

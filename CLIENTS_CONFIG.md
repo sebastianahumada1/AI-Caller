@@ -193,3 +193,4 @@ Para verificar que un cliente está configurado correctamente:
 **Última actualización**: Noviembre 2024
 **Versión del sistema**: 1.0.0
 
+
