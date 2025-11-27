@@ -10,7 +10,7 @@ Agrega estas variables a tu archivo `.env`:
 
 ```bash
 # Slack Configuration (for recording uploads)
-SLACK_BOT_TOKEN=xoxb-3997512858978-9616805689831-025BliIUxoy0hQXA2h5LsQnK
+SLACK_BOT_TOKEN=your_slack_bot_token_here
 SLACK_CHANNEL_ID=C09J96WA942
 ```
 

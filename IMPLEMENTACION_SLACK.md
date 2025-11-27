@@ -5,7 +5,7 @@
 Se ha implementado exitosamente la funcionalidad para subir automáticamente las grabaciones de VAPI a Slack usando las credenciales proporcionadas.
 
 ### Credenciales Configuradas
-- **Bot Token**: `xoxb-3997512858978-9616805689831-025BliIUxoy0hQXA2h5LsQnK`
+- **Bot Token**: `your_slack_bot_token_here`
 - **Canal ID**: `C09J96WA942`
 
 ## 📁 Archivos Creados/Modificados
@@ -55,7 +55,7 @@ Se ha implementado exitosamente la funcionalidad para subir automáticamente las
 cp env.example .env
 
 # Las credenciales ya están configuradas:
-SLACK_BOT_TOKEN=xoxb-3997512858978-9616805689831-025BliIUxoy0hQXA2h5LsQnK
+SLACK_BOT_TOKEN=your_slack_bot_token_here
 SLACK_CHANNEL_ID=C09J96WA942
 ```
 
