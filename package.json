@@ -8,7 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "dev:ngrok": "node scripts/dev-with-ngrok.js",
     "dev:manual": "node scripts/start-manual.sh",
-    "build": "tsc",
+    "build": "npx tsc",
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint src --ext .ts",
