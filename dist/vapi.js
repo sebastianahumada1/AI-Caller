@@ -645,10 +645,19 @@ export class VapiWebhookHandler {
                     canProcessWithGHL: true,
                 });
                 // Trigger final summary note (only once per call)
-                this.sendFinalSummaryNote(callId, {
-                    contactId: ghlMetadata.contactId,
-                    metadata: ghlMetadata,
-                });
+                try {
+                    await this.sendFinalSummaryNote(callId, {
+                        contactId: ghlMetadata.contactId,
+                        metadata: ghlMetadata,
+                    });
+                }
+                catch (error) {
+                    Logger.error('[GHL_METADATA_PROCESS] Failed to send final summary note', {
+                        callId,
+                        contactId: ghlMetadata.contactId,
+                        error: error instanceof Error ? error.message : 'Unknown error',
+                    });
+                }
             }
             Logger.info('[GHL_METADATA_PROCESS] GHL metadata processing completed', {
                 callId,
