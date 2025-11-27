@@ -1,44 +1,15 @@
-# Development files
 node_modules
 .env
-.env.local
+.env.*
+!.env.example
 *.log
-
-# Docker files
-Dockerfile
-Dockerfile.dev
-docker-compose.yml
-docker-compose.dev.yml
-
-# Scripts
+.DS_Store
 scripts/
-*.sh
-*.bat
-
-# Documentation
+docker-compose*.yml
+Dockerfile*
+.git/
+.gitignore
 *.md
 !README.md
-
-# ngrok
-ngrok.yml
-ngrok.yml.example
-setup-ngrok.sh
-
-# Storage
-storage/
-
-# Git
-.git
-.gitignore
-
-# IDE
-.vscode
-.idea
-
-# OS
-.DS_Store
-
-# Test files
-tsx
-vapi-ghl-connector@1.0.0
-
+src/
+tsconfig.json

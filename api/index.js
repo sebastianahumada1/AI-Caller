@@ -1,5 +1,6 @@
-// Vercel serverless entry point – leverage the full Express app compiled by tsc
+// Vercel serverless entry point
+// Import the compiled Express app from dist
 import app from '../dist/server.js';
 
+// Export as default for Vercel serverless functions
 export default app;
-

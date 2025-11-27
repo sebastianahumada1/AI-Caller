@@ -551,10 +551,37 @@ Use the `/health` endpoint for uptime monitoring. The endpoint returns:
 
 ## Production Deployment
 
+### 🚀 Vercel Deployment (Recommended)
+
+This project is **fully configured** for Vercel deployment. 
+
+**Quick Deploy:**
+
+```bash
+# Verify everything is ready
+npm run vercel:check
+
+# Deploy to Vercel
+vercel --prod
+```
+
+**Or deploy via GitHub:**
+1. Push your code to GitHub
+2. Import project in Vercel dashboard
+3. Configure environment variables
+4. Deploy automatically
+
+📚 **Complete Guides:**
+- **Quick Start (5 min):** See `DESPLIEGUE_RAPIDO.md` (Spanish)
+- **Detailed Guide:** See `VERCEL_DEPLOY.md` (English)
+
 ### Environment Variables
 
 Ensure all production environment variables are set:
 
+**For Vercel:** Configure in Settings → Environment Variables
+
+**For traditional hosting:**
 ```bash
 export NODE_ENV=production
 export PORT=3000

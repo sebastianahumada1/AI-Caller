@@ -8,7 +8,9 @@
     "dev": "tsx watch src/server.ts",
     "dev:ngrok": "node scripts/dev-with-ngrok.js",
     "dev:manual": "node scripts/start-manual.sh",
-    "build": "npx tsc",
+    "build": "tsc",
+    "vercel-build": "tsc",
+    "vercel:check": "node scripts/vercel-check.js",
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint src --ext .ts",
@@ -38,6 +40,9 @@
     "form-data": "^4.0.4",
     "typescript": "^5.3.3",
     "zod": "^3.22.4"
+  },
+  "optionalDependencies": {
+    "@vercel/kv": "^1.0.1"
   },
   "devDependencies": {
     "@types/axios": "^0.9.36",

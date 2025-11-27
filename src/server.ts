@@ -559,6 +559,8 @@ app.get('/', async (_req, res) => {
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
+  const storageStatus = vapiHandler.getStorageStatus();
+  
   const healthInfo = {
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -581,6 +583,7 @@ app.get('/health', (_req, res) => {
       ghlToolSupport: true,
       scheduledPolling: true,
       slackIntegration: !!(process.env.SLACK_BOT_TOKEN && process.env.SLACK_CHANNEL_ID),
+      persistentStorage: storageStatus,
     },
   };
 

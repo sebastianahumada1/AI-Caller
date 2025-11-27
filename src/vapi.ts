@@ -4,6 +4,7 @@ import { GHLConnector } from './ghl.js';
 import { Logger } from './utils/logger.js';
 import { VapiApiClient } from './utils/vapi-client.js';
 import { SlackService } from './utils/slack-service.js';
+import { StateStorage } from './utils/state-storage.js';
 import {
   VapiWebhookBodySchema,
   VapiWebhookBody,
@@ -21,14 +22,12 @@ export class VapiWebhookHandler {
   private ghlConnector: GHLConnector;
   private vapiApiClient: VapiApiClient;
   private slackService: SlackService | null;
-  private sentNotes: Set<string>; // Track sent notes to avoid duplicates
-  private callSummaries: Map<string, string>; // Store summaries from end-of-call-report
+  private stateStorage: StateStorage; // ✅ Persistent storage for Vercel
 
   constructor() {
     this.ghlConnector = new GHLConnector();
     this.vapiApiClient = new VapiApiClient();
-    this.sentNotes = new Set();
-    this.callSummaries = new Map();
+    this.stateStorage = new StateStorage(); // ✅ Initialize StateStorage
     
     // Initialize Slack service if credentials are available
     try {
@@ -135,7 +134,7 @@ export class VapiWebhookHandler {
         return this.handleCallEnded(message);
       
       case 'end-of-call-report':
-        return this.handleEndOfCallReport(message);
+        return await this.handleEndOfCallReport(message);
       
       case 'transcript':
         return this.handleTranscript(message);
@@ -326,7 +325,7 @@ export class VapiWebhookHandler {
     };
   }
 
-  private handleEndOfCallReport(message: any): WebhookResponse {
+  private async handleEndOfCallReport(message: any): Promise<WebhookResponse> {
     const recordingUrl = message.call?.recordingUrl || message.recordingUrl;
     const assistantId = message.call?.assistantId;
     
@@ -352,8 +351,11 @@ export class VapiWebhookHandler {
 
     // Store the summary from end-of-call-report if available
     if (message.call?.id && message.analysis?.summary) {
-      this.callSummaries.set(message.call.id, message.analysis.summary);
-      Logger.info('[END_OF_CALL] Summary stored for GHL note', {
+      await this.stateStorage.storeCallSummary(
+        message.call.id, 
+        message.analysis.summary
+      );
+      Logger.info('[END_OF_CALL] Summary stored in persistent storage', {
         callId: message.call.id,
         summaryLength: message.analysis.summary.length,
       });
@@ -427,8 +429,11 @@ export class VapiWebhookHandler {
         
         // Store the summary if available
         if (callDetails.analysis.summary) {
-          this.callSummaries.set(callId, callDetails.analysis.summary);
-          Logger.info('[ANALYSIS_POLL] Summary stored from polling', {
+          await this.stateStorage.storeCallSummary(
+            callId, 
+            callDetails.analysis.summary
+          );
+          Logger.info('[ANALYSIS_POLL] Summary stored from polling in persistent storage', {
             callId,
             summaryLength: callDetails.analysis.summary.length,
           });
@@ -866,18 +871,22 @@ export class VapiWebhookHandler {
   }
 
   // New method to send final summary note (only once per call)
-  private sendFinalSummaryNote(callId: string, data: {
+  private async sendFinalSummaryNote(callId: string, data: {
     contactId: string;
     metadata?: any;
-  }): void {
-    // Check if we already sent a note for this call
-    if (this.sentNotes.has(callId)) {
-      Logger.info('[FINAL_SUMMARY] Note already sent for this call, skipping', { callId });
+  }): Promise<void> {
+    // Check if we already sent a note for this call (using persistent storage)
+    const alreadySent = await this.stateStorage.wasNoteSent(callId, data.contactId);
+    if (alreadySent) {
+      Logger.info('[FINAL_SUMMARY] Note already sent for this call, skipping', { 
+        callId, 
+        contactId: data.contactId 
+      });
       return;
     }
 
-    // Mark this call as having a note sent
-    this.sentNotes.add(callId);
+    // Mark this call as having a note sent (in persistent storage)
+    await this.stateStorage.markNoteSent(callId, data.contactId);
 
     // Wait 10 seconds to collect all data, then send summary
     setTimeout(async () => {
@@ -904,7 +913,12 @@ export class VapiWebhookHandler {
 
         // Create summary note content with the actual summary from end-of-call-report
         const timestamp = new Date().toISOString();
-        const storedSummary = this.callSummaries.get(callId);
+        const storedSummary = await this.stateStorage.getCallSummary(callId);
+        
+        Logger.info('[FINAL_SUMMARY] Retrieved summary from persistent storage', {
+          callId,
+          summaryFound: !!storedSummary,
+        });
         
         const summaryContent = [
           `📞 CALL COMPLETED`,
@@ -1009,6 +1023,13 @@ export class VapiWebhookHandler {
       });
       return false;
     }
+  }
+
+  /**
+   * Get storage status for health checks
+   */
+  getStorageStatus(): { type: string; available: boolean; ttl: number } {
+    return this.stateStorage.getStatus();
   }
 
 }
