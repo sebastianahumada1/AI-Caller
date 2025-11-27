@@ -74,15 +74,121 @@ app.get('/debug/env', (_req, res) => {
     environment: {
       NODE_ENV: process.env.NODE_ENV,
       PORT: process.env.PORT,
+      VERCEL: process.env.VERCEL,
       WEBHOOK_TOKEN: process.env.WEBHOOK_TOKEN ? 'Set' : 'Not set',
       GHL_API_KEY: process.env.GHL_API_KEY ? 'Set' : 'Not set',
       VAPI_API_KEY: process.env.VAPI_API_KEY ? 'Set' : 'Not set',
+      VAPI_API_BASE_URL: process.env.VAPI_API_BASE_URL || 'Not set (will default to https://api.vapi.ai)',
       GHL_INCOMING_WEBHOOK_URL_DEFAULT: process.env.GHL_INCOMING_WEBHOOK_URL_DEFAULT ? 'Set' : 'Not set',
     },
-    ghlApiKeyValue: process.env.GHL_API_KEY ? process.env.GHL_API_KEY.substring(0, 10) + '...' : 'Not set',
+    apiKeyPreviews: {
+      ghlApiKey: process.env.GHL_API_KEY ? process.env.GHL_API_KEY.substring(0, 10) + '...' : 'Not set',
+      vapiApiKey: process.env.VAPI_API_KEY ? process.env.VAPI_API_KEY.substring(0, 10) + '...' : 'Not set',
+    },
+    serverInfo: {
+      uptime: process.uptime(),
+      nodeVersion: process.version,
+      platform: process.platform,
+    },
   };
   
   res.status(200).json(envInfo);
+});
+
+// Debug endpoint to test Vapi API connection
+app.get('/debug/vapi-connection', async (_req, res) => {
+  try {
+    Logger.info('[DEBUG] Testing Vapi API connection');
+    
+    // Import VapiApiClient dynamically to test
+    const { VapiApiClient } = await import('./utils/vapi-client.js');
+    const testClient = new VapiApiClient();
+    
+    // Get config status
+    const configStatus = testClient.getConfigStatus();
+    
+    // Test connection
+    const connectionResult = await testClient.testConnection();
+    
+    const result = {
+      timestamp: new Date().toISOString(),
+      configStatus,
+      connectionTest: connectionResult,
+      summary: connectionResult.success 
+        ? '✅ Connection to Vapi API successful' 
+        : `❌ Connection failed: ${connectionResult.diagnostic?.type || 'Unknown error'}`,
+      recommendation: connectionResult.diagnostic?.suggestion || 'No issues detected',
+    };
+    
+    Logger.info('[DEBUG] Vapi connection test completed', result);
+    
+    res.status(connectionResult.success ? 200 : 500).json(result);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    Logger.error('[DEBUG] Vapi connection test failed', { error: errorMessage });
+    
+    res.status(500).json({
+      timestamp: new Date().toISOString(),
+      error: errorMessage,
+      summary: '❌ Failed to test connection',
+    });
+  }
+});
+
+// Debug endpoint to test external HTTPS connectivity
+app.get('/debug/network', async (_req, res) => {
+  const results: Record<string, any> = {
+    timestamp: new Date().toISOString(),
+    tests: {},
+  };
+  
+  // Test various endpoints to diagnose network issues
+  const testEndpoints = [
+    { name: 'Google (general HTTPS)', url: 'https://www.google.com' },
+    { name: 'Vapi API', url: 'https://api.vapi.ai' },
+    { name: 'GHL API', url: 'https://services.leadconnectorhq.com' },
+  ];
+  
+  for (const endpoint of testEndpoints) {
+    const startTime = Date.now();
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(endpoint.url, {
+        method: 'HEAD',
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      results.tests[endpoint.name] = {
+        success: true,
+        status: response.status,
+        latencyMs: Date.now() - startTime,
+      };
+    } catch (error: any) {
+      results.tests[endpoint.name] = {
+        success: false,
+        error: error.message,
+        latencyMs: Date.now() - startTime,
+      };
+    }
+  }
+  
+  // Determine overall status
+  const allSuccessful = Object.values(results.tests).every((t: any) => t.success);
+  const vapiWorks = (results.tests['Vapi API'] as any)?.success;
+  
+  results.summary = allSuccessful 
+    ? '✅ All network connections working'
+    : vapiWorks 
+      ? '⚠️ Some connections failed, but Vapi API is reachable'
+      : '❌ Cannot reach Vapi API - network issue detected';
+  
+  Logger.info('[DEBUG] Network test completed', results);
+  
+  res.status(allSuccessful ? 200 : 500).json(results);
 });
 
 // Vapi webhook endpoint with token validation
