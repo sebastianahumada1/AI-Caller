@@ -1,9 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
-  "framework": null,
   "builds": [
     {
       "src": "dist/server.js",
@@ -13,7 +9,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "dist/server.js"
+      "dest": "/dist/server.js"
     }
   ]
 }
