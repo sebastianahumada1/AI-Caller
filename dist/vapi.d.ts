@@ -3,8 +3,7 @@ export declare class VapiWebhookHandler {
     private ghlConnector;
     private vapiApiClient;
     private slackService;
-    private sentNotes;
-    private callSummaries;
+    private stateStorage;
     constructor();
     validateToken(req: Request, res: Response, next: () => void): void;
     handleWebhook(req: Request, res: Response): Promise<void>;
@@ -18,8 +17,6 @@ export declare class VapiWebhookHandler {
     private handleUpdateStage;
     private handleCallEnded;
     private handleEndOfCallReport;
-    private scheduleAnalysisPolling;
-    private pollForCallAnalysis;
     private processEndOfCallReport;
     private handleTranscript;
     private handleStatusUpdate;
@@ -42,4 +39,12 @@ export declare class VapiWebhookHandler {
      * Test Slack connection
      */
     testSlackConnection(): Promise<boolean>;
+    /**
+     * Get storage status for health checks
+     */
+    getStorageStatus(): {
+        type: string;
+        available: boolean;
+        ttl: number;
+    };
 }

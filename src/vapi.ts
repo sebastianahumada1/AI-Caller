@@ -361,37 +361,46 @@ export class VapiWebhookHandler {
       });
     }
 
-    // Upload recording to Slack if available
+    // Upload recording to Slack IMMEDIATELY (await for Vercel serverless)
     if (recordingUrl && message.call?.id && this.slackService) {
-      this.uploadRecordingToSlack(
-        recordingUrl,
-        message.call.id,
-        {
-          duration: message.duration,
-          cost: message.cost,
-          summary: message.analysis?.summary,
-          sentiment: message.analysis?.sentiment,
-        }
-      ).catch(error => {
+      try {
+        Logger.info('[END_OF_CALL] Uploading recording to Slack', { callId: message.call.id });
+        await this.uploadRecordingToSlack(
+          recordingUrl,
+          message.call.id,
+          {
+            duration: message.duration,
+            cost: message.cost,
+            summary: message.analysis?.summary,
+            sentiment: message.analysis?.sentiment,
+          }
+        );
+        Logger.info('[END_OF_CALL] Recording uploaded to Slack successfully', { callId: message.call.id });
+      } catch (error) {
         Logger.error('[SLACK_UPLOAD] Failed to upload recording', {
           callId: message.call.id,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
-      });
+      }
     }
 
-    // Always schedule metadata pull when we receive end-of-call-report
+    // Process metadata and GHL IMMEDIATELY (no setTimeout for Vercel serverless)
     if (message.call?.id) {
-      Logger.info('Scheduling metadata pull for end-of-call-report', {
+      Logger.info('[END_OF_CALL] Processing metadata immediately for Vercel serverless', {
         callId: message.call.id,
         hasAnalysis: !!message.analysis,
       });
       
-      // Schedule polling for both analysis and metadata
-      this.scheduleAnalysisPolling(message.call.id);
-      
-      // Also schedule immediate metadata pull
-      this.scheduleMetadataPull(message.call.id);
+      try {
+        // Execute metadata pull immediately instead of scheduling with setTimeout
+        await this.pullAndProcessGhlMetadata(message.call.id);
+        Logger.info('[END_OF_CALL] Metadata processing completed', { callId: message.call.id });
+      } catch (error) {
+        Logger.error('[END_OF_CALL] Metadata processing failed', {
+          callId: message.call.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
     }
 
     // Process the report regardless of analysis status
@@ -403,67 +412,9 @@ export class VapiWebhookHandler {
     };
   }
 
-  private scheduleAnalysisPolling(callId: string): void {
-    // Option 1: Simple timeout-based retry
-    const pollAttempts = [30000, 60000, 120000]; // 30s, 1min, 2min
-    
-    pollAttempts.forEach((delay, index) => {
-      setTimeout(async () => {
-        Logger.info('Polling for call analysis', { callId, attempt: index + 1 });
-        await this.pollForCallAnalysis(callId);
-      }, delay);
-    });
-  }
-
-  private async pollForCallAnalysis(callId: string): Promise<void> {
-    try {
-      Logger.info('[ANALYSIS_POLL] Polling for call analysis and metadata', { callId });
-      
-      const callDetails = await this.vapiApiClient.getCall(callId);
-      
-      if (callDetails.analysis) {
-        Logger.info('[ANALYSIS_POLL] Analysis now available', {
-          callId,
-          hasAnalysis: true,
-        });
-        
-        // Store the summary if available
-        if (callDetails.analysis.summary) {
-          await this.stateStorage.storeCallSummary(
-            callId, 
-            callDetails.analysis.summary
-          );
-          Logger.info('[ANALYSIS_POLL] Summary stored from polling in persistent storage', {
-            callId,
-            summaryLength: callDetails.analysis.summary.length,
-          });
-        }
-      }
-      
-      // Also check for GHL metadata
-      if (callDetails.metadata?.ghl) {
-        Logger.info('[ANALYSIS_POLL] GHL metadata found during analysis poll', {
-          callId,
-          ghlKeys: Object.keys(callDetails.metadata.ghl),
-        });
-        
-        // Process the GHL metadata with assistant ID
-        const assistantId = callDetails.assistantId;
-        await this.processGhlMetadata(callId, callDetails.metadata.ghl, assistantId);
-      }
-      
-      Logger.info('[ANALYSIS_POLL] Analysis poll completed', {
-        callId,
-        hasAnalysis: !!callDetails.analysis,
-        hasGhlMetadata: !!callDetails.metadata?.ghl,
-      });
-    } catch (error) {
-      Logger.error('[ANALYSIS_POLL] Error polling for analysis', {
-        callId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  }
+  // NOTE: scheduleAnalysisPolling and pollForCallAnalysis removed
+  // These functions used setTimeout which doesn't work in Vercel serverless
+  // Metadata is now processed immediately in handleEndOfCallReport
 
   private processEndOfCallReport(message: any): void {
     // Add your business logic here
@@ -837,6 +788,8 @@ export class VapiWebhookHandler {
     }
   }
 
+  // @deprecated - No longer used in Vercel serverless (setTimeout doesn't work)
+  // Kept for backwards compatibility with non-serverless environments
   public async scheduleMetadataPull(callId: string, delays: number[] = [30000, 60000, 120000]): Promise<void> {
     Logger.info('[METADATA_SCHEDULE] Scheduling metadata pulls', {
       callId,
@@ -870,7 +823,7 @@ export class VapiWebhookHandler {
     });
   }
 
-  // New method to send final summary note (only once per call)
+  // Send final summary note (only once per call) - NO setTimeout for Vercel serverless
   private async sendFinalSummaryNote(callId: string, data: {
     contactId: string;
     metadata?: any;
@@ -888,77 +841,75 @@ export class VapiWebhookHandler {
     // Mark this call as having a note sent (in persistent storage)
     await this.stateStorage.markNoteSent(callId, data.contactId);
 
-    // Wait 10 seconds to collect all data, then send summary
-    setTimeout(async () => {
+    // Execute IMMEDIATELY (no setTimeout for Vercel serverless compatibility)
+    try {
+      Logger.info('[FINAL_SUMMARY] Sending final summary note', {
+        callId,
+        contactId: data.contactId,
+      });
+
+      // Try to get additional data
+      let finalData = { ...data };
+      
       try {
-        Logger.info('[FINAL_SUMMARY] Sending final summary note', {
-          callId,
-          contactId: data.contactId,
-        });
-
-        // Try to get additional data
-        let finalData = { ...data };
-        
-        try {
-          const metadataResult = await this.pullCallMetadata(callId);
-          if (metadataResult.ghlMetadata) {
-            finalData.metadata = finalData.metadata || metadataResult.ghlMetadata;
-          }
-        } catch (error) {
-          Logger.warn('[FINAL_SUMMARY] Could not fetch additional metadata', {
-            callId,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
+        const metadataResult = await this.pullCallMetadata(callId);
+        if (metadataResult.ghlMetadata) {
+          finalData.metadata = finalData.metadata || metadataResult.ghlMetadata;
         }
-
-        // Create summary note content with the actual summary from end-of-call-report
-        const timestamp = new Date().toISOString();
-        const storedSummary = await this.stateStorage.getCallSummary(callId);
-        
-        Logger.info('[FINAL_SUMMARY] Retrieved summary from persistent storage', {
-          callId,
-          summaryFound: !!storedSummary,
-        });
-        
-        const summaryContent = [
-          `📞 CALL COMPLETED`,
-          `Call ID: ${callId}`,
-          `Timestamp: ${timestamp}`,
-          ``,
-          `📊 SUMMARY:`,
-          `• Call processed successfully`,
-          storedSummary ? `• ${storedSummary}` : `• There is no summary available from the call analysis`
-        ].join('\n');
-
-        // Send the summary note to GHL
-        const ghlResult = await this.ghlConnector.addNoteByContactIdViaAPI(
-          `summary_${callId}`,
-          data.contactId,
-          summaryContent
-        );
-
-        if (ghlResult.ok) {
-          Logger.info('[FINAL_SUMMARY] Summary note sent to GHL successfully', {
-            callId,
-            contactId: data.contactId,
-            noteId: ghlResult.data?.note?.id,
-          });
-        } else {
-          Logger.error('[FINAL_SUMMARY] Failed to send summary note to GHL', {
-            callId,
-            contactId: data.contactId,
-            error: ghlResult.error,
-          });
-        }
-
       } catch (error) {
-        Logger.error('[FINAL_SUMMARY] Error sending summary note', {
+        Logger.warn('[FINAL_SUMMARY] Could not fetch additional metadata', {
           callId,
-          contactId: data.contactId,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
-    }, 10000); // Wait 10 seconds to collect all data
+
+      // Create summary note content with the actual summary from end-of-call-report
+      const timestamp = new Date().toISOString();
+      const storedSummary = await this.stateStorage.getCallSummary(callId);
+      
+      Logger.info('[FINAL_SUMMARY] Retrieved summary from persistent storage', {
+        callId,
+        summaryFound: !!storedSummary,
+      });
+      
+      const summaryContent = [
+        `📞 CALL COMPLETED`,
+        `Call ID: ${callId}`,
+        `Timestamp: ${timestamp}`,
+        ``,
+        `📊 SUMMARY:`,
+        `• Call processed successfully`,
+        storedSummary ? `• ${storedSummary}` : `• There is no summary available from the call analysis`
+      ].join('\n');
+
+      // Send the summary note to GHL
+      const ghlResult = await this.ghlConnector.addNoteByContactIdViaAPI(
+        `summary_${callId}`,
+        data.contactId,
+        summaryContent
+      );
+
+      if (ghlResult.ok) {
+        Logger.info('[FINAL_SUMMARY] Summary note sent to GHL successfully', {
+          callId,
+          contactId: data.contactId,
+          noteId: ghlResult.data?.note?.id,
+        });
+      } else {
+        Logger.error('[FINAL_SUMMARY] Failed to send summary note to GHL', {
+          callId,
+          contactId: data.contactId,
+          error: ghlResult.error,
+        });
+      }
+
+    } catch (error) {
+      Logger.error('[FINAL_SUMMARY] Error sending summary note', {
+        callId,
+        contactId: data.contactId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 
   /**
