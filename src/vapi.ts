@@ -366,18 +366,49 @@ export class VapiWebhookHandler {
       try {
         Logger.info('[END_OF_CALL] Uploading recording to Slack', { callId: message.call.id });
         
-        // Try to get GHL metadata and full call data for lead info
-        let ghlMetadata = null;
-        let fullCallData = null;
-        try {
-          const metadataResult = await this.pullCallMetadata(message.call.id);
-          ghlMetadata = metadataResult.ghlMetadata;
-          fullCallData = metadataResult.fullCall;
-        } catch (error) {
-          Logger.warn('[SLACK_UPLOAD] Could not fetch GHL metadata', {
-            callId: message.call.id,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
+        // DEBUG: Log what's available in the webhook message
+        Logger.info('[END_OF_CALL] DEBUG - Webhook message data', {
+          callId: message.call?.id,
+          hasCallMetadata: !!message.call?.metadata,
+          callMetadataKeys: message.call?.metadata ? Object.keys(message.call.metadata) : [],
+          hasGhlInCallMetadata: !!message.call?.metadata?.ghl,
+          ghlMetadataKeys: message.call?.metadata?.ghl ? Object.keys(message.call.metadata.ghl) : [],
+          rawCallMetadata: message.call?.metadata ? JSON.stringify(message.call.metadata).substring(0, 500) : null,
+        });
+        
+        // Try to use metadata from the webhook message first
+        let ghlMetadata = message.call?.metadata?.ghl || null;
+        let fullCallData = message.call || null;
+        
+        Logger.info('[END_OF_CALL] Using metadata from webhook message', {
+          callId: message.call?.id,
+          hasMessageMetadata: !!message.call?.metadata,
+          hasGhlInMessage: !!ghlMetadata,
+        });
+        
+        // If not available in webhook, try pulling from API
+        if (!ghlMetadata) {
+          try {
+            Logger.info('[END_OF_CALL] Pulling metadata from API', { callId: message.call.id });
+            const metadataResult = await this.pullCallMetadata(message.call.id);
+            ghlMetadata = metadataResult.ghlMetadata;
+            fullCallData = metadataResult.fullCall || fullCallData;
+            
+            Logger.info('[END_OF_CALL] DEBUG - Metadata fetched from API', {
+              callId: message.call.id,
+              hasGhlMetadata: !!ghlMetadata,
+              hasFullCallData: !!fullCallData,
+              ghlMetadataKeys: ghlMetadata ? Object.keys(ghlMetadata) : [],
+              fullCallDataKeys: fullCallData ? Object.keys(fullCallData) : [],
+              fullCallMetadataKeys: fullCallData?.metadata ? Object.keys(fullCallData.metadata) : [],
+              rawGhlMetadata: ghlMetadata ? JSON.stringify(ghlMetadata).substring(0, 500) : null,
+            });
+          } catch (error) {
+            Logger.warn('[SLACK_UPLOAD] Could not fetch GHL metadata from API', {
+              callId: message.call.id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
         }
         
         await this.uploadRecordingToSlack(

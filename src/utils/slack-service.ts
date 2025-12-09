@@ -112,6 +112,34 @@ export class SlackService {
       // Get client name from assistant ID
       const clientName = assistantId ? ClientConfigManager.getClientName(assistantId) : 'Unknown Client';
       
+      // DEBUG: Log all available data structures
+      Logger.info('[SLACK_SERVICE] DEBUG - Available data structures', {
+        callId,
+        hasGhlMetadata: !!ghlMetadata,
+        hasFullCallData: !!fullCallData,
+        ghlMetadataStructure: ghlMetadata ? {
+          keys: Object.keys(ghlMetadata),
+          contact: ghlMetadata.contact ? {
+            keys: Object.keys(ghlMetadata.contact),
+            name: ghlMetadata.contact.name,
+            firstName: ghlMetadata.contact.firstName,
+            lastName: ghlMetadata.contact.lastName,
+            email: ghlMetadata.contact.email,
+          } : null,
+          raw: JSON.stringify(ghlMetadata).substring(0, 500),
+        } : null,
+        fullCallDataStructure: fullCallData ? {
+          keys: Object.keys(fullCallData),
+          hasMetadata: !!fullCallData.metadata,
+          metadataKeys: fullCallData.metadata ? Object.keys(fullCallData.metadata) : [],
+          metadataName: fullCallData.metadata?.name,
+          metadataEmail: fullCallData.metadata?.email,
+          hasCustomer: !!fullCallData.customer,
+          customerKeys: fullCallData.customer ? Object.keys(fullCallData.customer) : [],
+          rawMetadata: fullCallData.metadata ? JSON.stringify(fullCallData.metadata).substring(0, 500) : null,
+        } : null,
+      });
+      
       // Extract lead name from multiple possible sources (priority order)
       // 1. ghlMetadata.contact.name (from GHL metadata)
       // 2. fullCallData.metadata.name (from VAPI metadata directly)
@@ -129,6 +157,15 @@ export class SlackService {
       const leadEmail = ghlMetadata?.contact?.email 
         || fullCallData?.metadata?.email 
         || 'N/A';
+      
+      Logger.info('[SLACK_SERVICE] DEBUG - Extracted lead info', {
+        callId,
+        leadName,
+        leadEmail,
+        source: ghlMetadata?.contact?.name ? 'ghlMetadata.contact.name' :
+                fullCallData?.metadata?.name ? 'fullCallData.metadata.name' :
+                ghlMetadata?.contact?.firstName ? 'ghlMetadata.contact.firstName' : 'N/A',
+      });
       
       // Format date: YYYY-MM-DD HH:MM:SS
       const now = new Date();
