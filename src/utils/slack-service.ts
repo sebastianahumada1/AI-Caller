@@ -88,6 +88,7 @@ export class SlackService {
     callId: string,
     assistantId?: string,
     ghlMetadata?: any,
+    fullCallData?: any,
     context?: {
       duration?: number;
       cost?: number;
@@ -102,6 +103,7 @@ export class SlackService {
         hasContext: !!context,
         hasAssistantId: !!assistantId,
         hasGhlMetadata: !!ghlMetadata,
+        hasFullCallData: !!fullCallData,
       });
 
       // Import ClientConfigManager to get client name
@@ -110,12 +112,23 @@ export class SlackService {
       // Get client name from assistant ID
       const clientName = assistantId ? ClientConfigManager.getClientName(assistantId) : 'Unknown Client';
       
-      // Extract lead information from GHL metadata
-      const leadName = ghlMetadata?.contact?.firstName 
-        ? `${ghlMetadata.contact.firstName}${ghlMetadata.contact.lastName ? ' ' + ghlMetadata.contact.lastName : ''}`
-        : ghlMetadata?.contact?.name || 'N/A';
+      // Extract lead name from multiple possible sources (priority order)
+      // 1. ghlMetadata.contact.name (from GHL metadata)
+      // 2. fullCallData.metadata.name (from VAPI metadata directly)
+      // 3. ghlMetadata.contact.firstName + lastName (fallback)
+      let leadName = 'N/A';
+      if (ghlMetadata?.contact?.name) {
+        leadName = ghlMetadata.contact.name;
+      } else if (fullCallData?.metadata?.name) {
+        leadName = fullCallData.metadata.name;
+      } else if (ghlMetadata?.contact?.firstName) {
+        leadName = `${ghlMetadata.contact.firstName}${ghlMetadata.contact.lastName ? ' ' + ghlMetadata.contact.lastName : ''}`;
+      }
       
-      const leadEmail = ghlMetadata?.contact?.email || 'N/A';
+      // Extract email from multiple sources
+      const leadEmail = ghlMetadata?.contact?.email 
+        || fullCallData?.metadata?.email 
+        || 'N/A';
       
       // Format date: YYYY-MM-DD HH:MM:SS
       const now = new Date();
@@ -127,15 +140,13 @@ export class SlackService {
       const seconds = String(now.getSeconds()).padStart(2, '0');
       const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
       
-      // Build the message with new format
+      // Build the message with exact format requested
       let message = `<!channel> New Call Recording & Report Just Dropped\n\n`;
       message += `**The name of the GHL account associated with the call:** ${clientName}\n\n`;
       message += `**Lead Name:** ${leadName}\n`;
       message += `**Email:** ${leadEmail}\n`;
       message += `**Date:** ${formattedDate}\n\n`;
-      message += `**Call Report:** Call Transcript\n\n`;
-      message += `**Call ID:** ${callId}\n`;
-      message += `**Call recording:** ${recordingUrl}\n\n`;
+      message += `**Call ID:** ${callId}\n\n`;
       message += `**Call Details:**\n`;
       
       if (context?.cost) {
@@ -151,6 +162,8 @@ export class SlackService {
       if (context?.summary) {
         message += `**Summary:** ${context.summary}\n`;
       }
+      
+      message += `\n**Call recording:** ${recordingUrl}`;
 
       // Send the message
       await this.sendMessage({
@@ -160,6 +173,8 @@ export class SlackService {
 
       Logger.info('[SLACK_SERVICE] Recording link sent successfully to Slack', {
         callId,
+        leadName,
+        leadEmail,
       });
 
     } catch (error) {
