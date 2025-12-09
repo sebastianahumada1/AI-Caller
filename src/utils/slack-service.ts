@@ -136,16 +136,33 @@ export class SlackService {
           metadataEmail: fullCallData.metadata?.email,
           hasCustomer: !!fullCallData.customer,
           customerKeys: fullCallData.customer ? Object.keys(fullCallData.customer) : [],
+          hasVariables: !!fullCallData.variables,
+          variablesKeys: fullCallData.variables ? Object.keys(fullCallData.variables) : [],
+          variablesName: fullCallData.variables?.name,
+          variablesEmail: fullCallData.variables?.email,
+          hasVariableValues: !!fullCallData.variableValues,
+          variableValuesKeys: fullCallData.variableValues ? Object.keys(fullCallData.variableValues) : [],
+          variableValuesName: fullCallData.variableValues?.name,
+          variableValuesEmail: fullCallData.variableValues?.email,
           rawMetadata: fullCallData.metadata ? JSON.stringify(fullCallData.metadata).substring(0, 500) : null,
         } : null,
       });
       
       // Extract lead name from multiple possible sources (priority order)
-      // 1. ghlMetadata.contact.name (from GHL metadata)
-      // 2. fullCallData.metadata.name (from VAPI metadata directly)
-      // 3. ghlMetadata.contact.firstName + lastName (fallback)
+      // 1. fullCallData.variables.name (VAPI variables - MOST COMMON)
+      // 2. fullCallData.variableValues.name (alternative location)
+      // 3. fullCallData.assistantOverrides.variableValues.name (assistant overrides)
+      // 4. ghlMetadata.contact.name (from GHL metadata)
+      // 5. fullCallData.metadata.name (from VAPI metadata directly)
+      // 6. ghlMetadata.contact.firstName + lastName (fallback)
       let leadName = 'N/A';
-      if (ghlMetadata?.contact?.name) {
+      if (fullCallData?.variables?.name) {
+        leadName = fullCallData.variables.name;
+      } else if (fullCallData?.variableValues?.name) {
+        leadName = fullCallData.variableValues.name;
+      } else if (fullCallData?.assistantOverrides?.variableValues?.name) {
+        leadName = fullCallData.assistantOverrides.variableValues.name;
+      } else if (ghlMetadata?.contact?.name) {
         leadName = ghlMetadata.contact.name;
       } else if (fullCallData?.metadata?.name) {
         leadName = fullCallData.metadata.name;
@@ -154,7 +171,10 @@ export class SlackService {
       }
       
       // Extract email from multiple sources
-      const leadEmail = ghlMetadata?.contact?.email 
+      const leadEmail = fullCallData?.variables?.email
+        || fullCallData?.variableValues?.email
+        || fullCallData?.assistantOverrides?.variableValues?.email
+        || ghlMetadata?.contact?.email 
         || fullCallData?.metadata?.email 
         || 'N/A';
       
@@ -162,9 +182,17 @@ export class SlackService {
         callId,
         leadName,
         leadEmail,
-        source: ghlMetadata?.contact?.name ? 'ghlMetadata.contact.name' :
-                fullCallData?.metadata?.name ? 'fullCallData.metadata.name' :
-                ghlMetadata?.contact?.firstName ? 'ghlMetadata.contact.firstName' : 'N/A',
+        nameSource: fullCallData?.variables?.name ? 'fullCallData.variables.name' :
+                    fullCallData?.variableValues?.name ? 'fullCallData.variableValues.name' :
+                    fullCallData?.assistantOverrides?.variableValues?.name ? 'fullCallData.assistantOverrides.variableValues.name' :
+                    ghlMetadata?.contact?.name ? 'ghlMetadata.contact.name' :
+                    fullCallData?.metadata?.name ? 'fullCallData.metadata.name' :
+                    ghlMetadata?.contact?.firstName ? 'ghlMetadata.contact.firstName' : 'N/A',
+        emailSource: fullCallData?.variables?.email ? 'fullCallData.variables.email' :
+                     fullCallData?.variableValues?.email ? 'fullCallData.variableValues.email' :
+                     fullCallData?.assistantOverrides?.variableValues?.email ? 'fullCallData.assistantOverrides.variableValues.email' :
+                     ghlMetadata?.contact?.email ? 'ghlMetadata.contact.email' :
+                     fullCallData?.metadata?.email ? 'fullCallData.metadata.email' : 'N/A',
       });
       
       // Format date: YYYY-MM-DD HH:MM:SS
