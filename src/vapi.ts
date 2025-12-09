@@ -365,9 +365,24 @@ export class VapiWebhookHandler {
     if (recordingUrl && message.call?.id && this.slackService) {
       try {
         Logger.info('[END_OF_CALL] Uploading recording to Slack', { callId: message.call.id });
+        
+        // Try to get GHL metadata for lead info
+        let ghlMetadata = null;
+        try {
+          const metadataResult = await this.pullCallMetadata(message.call.id);
+          ghlMetadata = metadataResult.ghlMetadata;
+        } catch (error) {
+          Logger.warn('[SLACK_UPLOAD] Could not fetch GHL metadata', {
+            callId: message.call.id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+        
         await this.uploadRecordingToSlack(
           recordingUrl,
           message.call.id,
+          assistantId,
+          ghlMetadata,
           {
             duration: message.duration,
             cost: message.cost,
@@ -926,6 +941,8 @@ export class VapiWebhookHandler {
   private async uploadRecordingToSlack(
     recordingUrl: string,
     callId: string,
+    assistantId?: string,
+    ghlMetadata?: any,
     context?: {
       duration?: number;
       cost?: number;
@@ -943,11 +960,15 @@ export class VapiWebhookHandler {
         callId,
         recordingUrl,
         hasContext: !!context,
+        hasAssistantId: !!assistantId,
+        hasGhlMetadata: !!ghlMetadata,
       });
 
       await this.slackService.uploadRecordingWithContext(
         recordingUrl,
         callId,
+        assistantId,
+        ghlMetadata,
         context
       );
 

@@ -86,6 +86,8 @@ export class SlackService {
   async uploadRecordingWithContext(
     recordingUrl: string,
     callId: string,
+    assistantId?: string,
+    ghlMetadata?: any,
     context?: {
       duration?: number;
       cost?: number;
@@ -98,39 +100,57 @@ export class SlackService {
         callId,
         recordingUrl,
         hasContext: !!context,
+        hasAssistantId: !!assistantId,
+        hasGhlMetadata: !!ghlMetadata,
       });
 
-      // Build the main message with recording link (in English)
-      let message = `🎵 **New Call Recording Available**\n\n`;
-      message += `🆔 **Call ID:** ${callId}\n`;
-      message += `🔗 **Recording:** ${recordingUrl}\n\n`;
-
-      // Add context information if provided (in English)
-      if (context && Object.keys(context).length > 0) {
-        message += `📊 **Call Details:**\n`;
-        
-        if (context.duration) {
-          const minutes = Math.floor(context.duration / 60);
-          const seconds = Math.floor(context.duration % 60);
-          message += `⏱️ Duration: ${minutes}:${seconds.toString().padStart(2, '0')}\n`;
-        }
-        
-        if (context.cost) {
-          message += `💰 Cost: $${context.cost.toFixed(4)}\n`;
-        }
-        
-        if (context.sentiment) {
-          const sentimentEmoji = context.sentiment.toLowerCase().includes('positive') ? '😊' : 
-                                context.sentiment.toLowerCase().includes('negative') ? '😞' : '😐';
-          message += `${sentimentEmoji} Sentiment: ${context.sentiment}\n`;
-        }
-        
-        if (context.summary) {
-          message += `📝 Summary: ${context.summary}\n`;
-        }
+      // Import ClientConfigManager to get client name
+      const { ClientConfigManager } = await import('./client-config.js');
+      
+      // Get client name from assistant ID
+      const clientName = assistantId ? ClientConfigManager.getClientName(assistantId) : 'Unknown Client';
+      
+      // Extract lead information from GHL metadata
+      const leadName = ghlMetadata?.contact?.firstName 
+        ? `${ghlMetadata.contact.firstName}${ghlMetadata.contact.lastName ? ' ' + ghlMetadata.contact.lastName : ''}`
+        : ghlMetadata?.contact?.name || 'N/A';
+      
+      const leadEmail = ghlMetadata?.contact?.email || 'N/A';
+      
+      // Format date: YYYY-MM-DD HH:MM:SS
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      
+      // Build the message with new format
+      let message = `<!channel> New Call Recording & Report Just Dropped\n\n`;
+      message += `**The name of the GHL account associated with the call:** ${clientName}\n\n`;
+      message += `**Lead Name:** ${leadName}\n`;
+      message += `**Email:** ${leadEmail}\n`;
+      message += `**Date:** ${formattedDate}\n\n`;
+      message += `**Call Report:** Call Transcript\n\n`;
+      message += `**Call ID:** ${callId}\n`;
+      message += `**Call recording:** ${recordingUrl}\n\n`;
+      message += `**Call Details:**\n`;
+      
+      if (context?.cost) {
+        message += `**Cost:** $${context.cost.toFixed(4)}\n`;
       }
-
-      message += `\n💡 Click the link above to listen to the recording`;
+      
+      if (context?.duration) {
+        const durationMinutes = Math.floor(context.duration / 60);
+        const durationSeconds = Math.floor(context.duration % 60);
+        message += `**Duration:** ${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}\n`;
+      }
+      
+      if (context?.summary) {
+        message += `**Summary:** ${context.summary}\n`;
+      }
 
       // Send the message
       await this.sendMessage({
